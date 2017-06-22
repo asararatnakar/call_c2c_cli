@@ -153,7 +153,7 @@ instantiateChaincode () {
 	# while 'peer chaincode' command can get the orderer endpoint from the peer (if join was successful),
 	# lets supply it directly as we know it using the "-o" option
 	if [ -z "$CORE_PEER_TLS_ENABLED" -o "$CORE_PEER_TLS_ENABLED" = "false" ]; then
-		peer chaincode instantiate -o orderer.example.com:7050 -C ${CHANNEL_NAME}1 -n mycc02 -v 1.0 -c '{"Args":["init","a","100","b","200"]}' -P "OR	('Org1MSP.member','Org2MSP.member')" >&log.txt
+		peer chaincode instantiate -o orderer.example.com:7050 -C ${CHANNEL_NAME}1 -n mycc02 -v 1.0 -c '{"Args":["init","a","250","b","750"]}' -P "OR	('Org1MSP.member','Org2MSP.member')" >&log.txt
 	else
 		peer chaincode instantiate -o orderer.example.com:7050 --tls $CORE_PEER_TLS_ENABLED --cafile $ORDERER_CA -C ${CHANNEL_NAME}1 -n mycc02 -v 1.0 -c '{"Args":["init","a","250","b","750"]}' -P "OR	('Org1MSP.member','Org2MSP.member')" >&log.txt
 	fi
@@ -271,6 +271,33 @@ c2cInvoke () {
 	echo
 }
 
+upgradeChaincode () {
+	for ch in 0 1 2 3; do
+		PEER=$ch
+		setGlobals $PEER
+		peer chaincode install -n mycc02 -v 2.0 -p github.com/hyperledger/fabric/examples/chaincode/go/chaincode_example02 >&log.txt
+		res=$?
+		cat log.txt
+	        verifyResult $res "Chaincode installation with v2.0 on remote peer PEER$PEER has Failed"
+		echo "===================== Chaincode is installed on remote peer PEER$PEER with v2.0  ===================== "
+		echo
+	done
+
+	PEER=$1
+	setGlobals $PEER
+	# while 'peer chaincode' command can get the orderer endpoint from the peer (if join was successful),
+	# lets supply it directly as we know it using the "-o" option
+	if [ -z "$CORE_PEER_TLS_ENABLED" -o "$CORE_PEER_TLS_ENABLED" = "false" ]; then
+		peer chaincode upgrade -o orderer.example.com:7050 -C ${CHANNEL_NAME}1 -n mycc02 -v 2.0 -c '{"Args":["init","a","100","b","200"]}' -P "OR ('Org1MSP.member','Org2MSP.member')" >&log.txt
+	else
+		peer chaincode upgrade -o orderer.example.com:7050 --tls $CORE_PEER_TLS_ENABLED --cafile $ORDERER_CA -C ${CHANNEL_NAME}1 -n mycc02 -v 2.0 -c '{"Args":["init","a","100","b","200"]}' -P "OR ('Org1MSP.member','Org2MSP.member')" >&log.txt
+	fi
+	res=$?
+	cat log.txt
+	verifyResult $res "Chaincode Upgrade on PEER$PEER on channel '${CHANNEL_NAME}1' failed"
+	echo "===================== Chaincode Upgrade on PEER$PEER on channel '${CHANNEL_NAME}1' is successful ===================== "
+	echo
+}
 ## Create channel
 echo "Creating channel..."
 createChannel
@@ -298,6 +325,10 @@ chaincodeInvoke 0
 
 c2cQuery 2 1000
 c2cInvoke 2
+
+upgradeChaincode 0
+sleep 20
+c2cQuery 2 300
 printf "\nTotal execution time : $(($(date +%s)-STARTED)) secs ...\n"
 
 echo
